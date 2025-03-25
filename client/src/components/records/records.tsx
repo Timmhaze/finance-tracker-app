@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Table } from 'react-bootstrap';
 
-const recordsData = [
+const recordsDummyData = [
     {
       id: 1,
       description: 'Grocery Shopping',
@@ -133,9 +133,43 @@ const recordsData = [
       date: '2025-03-09',
       account: 'Savings Account',
     },
+    {
+      id: 14,
+      description: 'Book Purchase',
+      type: 'Expense',
+      amount: '30',
+      currency: 'Euro',
+      paymentType: 'Credit Card',
+      date: '2025-03-20',
+      account: 'Checking Account',
+    },
   ];
 
 export const Records: React.FC = () => {
+
+  interface Record {
+    id: number;
+    description: string;
+    type: string;
+    amount: string;
+    currency: string;
+    paymentType: string;
+    date: string;
+    account: string;
+  }
+
+  const [recordData, setRecordData] = React.useState<Record[]>([]);
+
+  useEffect(() => {
+    fetch('http://localhost:3001/api/records/')
+      .then((res) => res.json())
+      .then((data) => {
+        setRecordData(data);
+      }).catch((error) => {
+        console.error('Frontend Error:', error);
+      });
+  }, [])
+
   return (
     <div className="w-100">
       <h2 className="mb-4">Transaction Records</h2>
@@ -152,7 +186,7 @@ export const Records: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {recordsData.map((record) => (
+          {recordData.map((record) => (
             <tr key={record.id}>
               <td>{record.description}</td>
               <td>{record.type}</td>
