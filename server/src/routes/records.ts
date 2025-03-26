@@ -1,5 +1,5 @@
 import express, {Request, Response} from 'express';
-import RecordModel from '../models/record';
+import TransactionRecordModel from '../models/record';
 
 const router = express.Router();
 
@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', async (req: Request, res: Response) => {
     try 
     {
-        const records = await RecordModel.find();
+        const records = await TransactionRecordModel.find();
 
         if(records.length === 0) // If there are no records to show, retrn a 404 status code
         {
@@ -32,7 +32,7 @@ router.post('/', async (req: Request, res: Response) => {
     {
         const newRecordBody = req.body; // Get the record from the frontend request body
 
-        const newRecord = new RecordModel(newRecordBody); // Create a new record instance using the data from the request
+        const newRecord = new TransactionRecordModel(newRecordBody); // Create a new record instance using the data from the request
 
         const savedRecord = await newRecord.save(); // Save the record to the database
         res.status(201).json(savedRecord);
@@ -45,14 +45,14 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // Edit a record
-router.patch('/:id', async (req: Request, res: Response) => {
+router.patch('/:_id', async (req: Request, res: Response) => {
     try 
     {
-        const recordId = req.params.id; // Get the record ID from the request parameters
+        const recordId = req.params._id; // Get the record ID from the request parameters
 
         const newRecordBody = req.body; // Get the updated record from the frontend request body
 
-        const updatedRecord = await RecordModel.findByIdAndUpdate(recordId, newRecordBody, { new: true }); // Find the record by ID and update it with the new data
+        const updatedRecord = await TransactionRecordModel.findByIdAndUpdate(recordId, newRecordBody, { new: true }); // Find the record by ID and update it with the new data
 
         if (!updatedRecord) 
         {
@@ -70,12 +70,12 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
 
 // Delete a record
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:_id', async (req: Request, res: Response) => {
     try
     {
-        const recordId = req.params.id; // Get the record ID from the request parameters
+        const recordId = req.params._id; // Get the record ID from the request parameters
 
-        const recordForDeletion = await RecordModel.findByIdAndDelete(recordId); // Find the record by ID and delete it
+        const recordForDeletion = await TransactionRecordModel.findByIdAndDelete(recordId); // Find the record by ID and delete it
 
         if (!recordForDeletion) 
         {

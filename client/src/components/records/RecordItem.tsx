@@ -1,7 +1,8 @@
 import React from 'react';
+import { TransactionRecord } from './Records';
 
 interface RecordItemProps {
-  record: Record<string, any>;
+  record: TransactionRecord;
 };
 
 
