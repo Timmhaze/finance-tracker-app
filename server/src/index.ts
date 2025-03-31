@@ -12,7 +12,7 @@ app.use(express.json()); // To parse the incoming requests with JSON payloads
 app.use(cors()); // To enable Cross-Origin Resource Sharing
 
 // Database Connection
-const MONGO_URI: string = 'mongodb+srv://THayes95:zbvpW4nIZ4qzkZr8@finance-tracker-app.2vgf6.mongodb.net/'; //MongoDB URI
+const MONGO_URI: string = 'mongodb+srv://THayes95:zbvpW4nIZ4qzkZr8@finance-tracker-cluster.ftolny7.mongodb.net/'; //MongoDB URI
 mongoose
     .connect(MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))
@@ -21,4 +21,6 @@ mongoose
 app.use('/api/records', recordsRoutes);
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`)); // Start the server on the specified port
+
+
 
