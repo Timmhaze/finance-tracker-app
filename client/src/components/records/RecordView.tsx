@@ -13,6 +13,7 @@ export const RecordView: React.FC<RecordViewProps> = ({ records }) => {
         <thead className="thead-dark">
           <tr>
             <th>Description</th>
+            <th>Category</th>
             <th>Type</th>
             <th>Amount</th>
             <th>Currency</th>

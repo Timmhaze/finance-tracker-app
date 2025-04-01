@@ -7,12 +7,16 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 export interface TransactionRecord {
   _id: string; // MongoDB ID
   description: string;
+  category: string;
   type: string;
-  amount: number;
+  amount: string;
   currency: string;
   paymentType: string;
   date: string;
-  account: string;
+  account: {
+    _id: string; // MongoDB ID
+    title: string;
+  };
 }
 
 export const Records: React.FC = () => {
@@ -33,7 +37,7 @@ export const Records: React.FC = () => {
     <div className="w-100">
       <h2 className="mb-4">Transaction Records</h2>
       <RecordView records={recordData} />
-      <AddRecordForm />
+      {/* <AddRecordForm /> */}
     </div>
   );
 };

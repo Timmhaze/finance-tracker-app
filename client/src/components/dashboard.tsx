@@ -1,6 +1,6 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Row, Col } from 'react-bootstrap';
-import { Accounts } from './accounts';
+import { Accounts } from './accounts/Accounts';
 import { Records } from './records/Records';
 
 import '../styles/dashboard.module.css';
