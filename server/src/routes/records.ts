@@ -1,5 +1,6 @@
-import express, {Request, Response} from 'express';
+import express, {Request, Response, Router} from 'express';
 import TransactionRecordModel from '../models/record';
+import AccountModel from '../models/account'; // Import the Account model
 
 const router = express.Router();
 
@@ -34,12 +35,30 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
     try 
     {
-        const newRecordBody = req.body; // Get the record from the frontend request body
-
-        const newRecord = new TransactionRecordModel(newRecordBody); // Create a new record instance using the data from the request
-
+        const newRecord = new TransactionRecordModel(req.body); // Create a new record instance using the data from the request
         const savedRecord = await newRecord.save(); // Save the record to the database
-        res.status(201).json(savedRecord);
+        
+        const updatedAccount = await AccountModel.findByIdAndUpdate(
+            savedRecord.account,
+            { $inc: {balance: savedRecord.amount} },
+            { new: true }
+        );
+
+        if (!updatedAccount) {
+            // Rollback the transaction if account not found
+            await TransactionRecordModel.findByIdAndDelete(savedRecord._id);
+                res.status(404).json({ 
+                message: 'Linked account not found - transaction rolled back'
+            });
+          }
+
+        else
+        {
+            res.status(201).json({
+                transaction: savedRecord.toObject(),
+                newBalance: updatedAccount.balance 
+            });
+        }  
     } 
     
     catch(err) 

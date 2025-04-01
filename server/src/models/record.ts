@@ -26,6 +26,21 @@ const transactionRecordSchema: Schema = new Schema({
     },
 });
 
+transactionRecordSchema.pre<TransactionRecord>('save', function (next) {
+    if (this.type === 'Expense') 
+    {
+        this.amount = -Math.abs(this.amount); // Ensure amount is negative for expenses
+    }
+
+    else if (this.type === 'Income')
+    {
+        this.amount = Math.abs(this.amount); // Ensure amount is positive for income
+    }
+    next();
+});
+
+
+
 const TransactionRecordModel = mongoose.model<TransactionRecord>(
     'Record', transactionRecordSchema
 );
