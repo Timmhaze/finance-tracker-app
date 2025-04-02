@@ -12,11 +12,16 @@ export const AccountItem: React.FC<AccountItemProps> = ({ account }) => {
             <Card className="mb-3">
                 <Card.Body>
                     <Card.Title>{account.title}</Card.Title>
-                    <Card.Text>
+                    <Card.Text className="mb-1">
                         <strong>Balance:</strong> {account.balance} {account.currency}
                     </Card.Text>
+                    {account.convertedBalance && (
+                        <Card.Text className="text-muted small">
+                            ≈ {account.convertedBalance}
+                        </Card.Text>
+                    )}
                 </Card.Body>
             </Card>
         </Col>
     );
-}
+};
