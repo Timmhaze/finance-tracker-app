@@ -1,5 +1,6 @@
 import express, {Request, Response, Router} from 'express';
 import TransactionRecordModel from '../models/record';
+import mongoose from 'mongoose';
 import AccountModel from '../models/account'; // Import the Account model
 
 const router = express.Router();
@@ -31,41 +32,73 @@ router.get('/', async (req: Request, res: Response) => {
     }
 });
 
-// Add a new record
 router.post('/', async (req: Request, res: Response) => {
-    try 
-    {
-        const newRecord = new TransactionRecordModel(req.body); // Create a new record instance using the data from the request
-        const savedRecord = await newRecord.save(); // Save the record to the database
-        
-        const updatedAccount = await AccountModel.findByIdAndUpdate(
-            savedRecord.account,
-            { $inc: {balance: savedRecord.amount} },
-            { new: true }
-        );
+    try {
 
-        if (!updatedAccount) {
-            // Rollback the transaction if account not found
-            await TransactionRecordModel.findByIdAndDelete(savedRecord._id);
-                res.status(404).json({ 
-                message: 'Linked account not found - transaction rolled back'
-            });
-          }
+      const formattedDate = new Date(req.body.date).toISOString().split('T')[0]; // Format the date to ISO string
 
-        else
-        {
-            res.status(201).json({
-                transaction: savedRecord.toObject(),
-                newBalance: updatedAccount.balance 
-            });
-        }  
-    } 
-    
-    catch(err) 
-    {
-        res.status(500).json({ message: 'Error adding record', error: err });
+      // 1. Create the record
+      const record = new TransactionRecordModel({
+        ...req.body,
+        amount: parseFloat(req.body.amount),
+        date: formattedDate,
+        account: req.body.accountId
+      });
+      
+      const savedRecord = await record.save();
+  
+      // 2. Update account balance
+      await AccountModel.findByIdAndUpdate(
+        savedRecord.account,
+        { $inc: { balance: savedRecord.amount } },
+        { new: true } // Return the updated document
+      );
+  
+      // 3. Return success
+      res.status(201).json(savedRecord);
+  
+    } catch (err) {
+      res.status(500).json({ message: 'Error creating record' });
     }
-});
+  });
+
+// Add a new record
+// router.post('/', async (req: Request, res: Response) => {
+//     try 
+//     {
+//         const newRecord = new TransactionRecordModel(req.body); // Create a new record instance using the data from the request
+//         const savedRecord = await newRecord.save(); // Save the record to the database
+        
+//         const updatedAccount = await AccountModel.findByIdAndUpdate(
+//             savedRecord.account,
+//             { $inc: {balance: savedRecord.amount} },
+//             { new: true }
+//         );
+
+//         if (!updatedAccount) {
+//             // Rollback the transaction if account not found
+//             await TransactionRecordModel.findByIdAndDelete(savedRecord._id);
+//                 res.status(404).json({ 
+//                 message: 'Linked account not found - transaction rolled back'
+//             });
+//           }
+
+//         else
+//         {
+//             res.status(201).json({
+//                 transaction: savedRecord.toObject(),
+//                 newBalance: updatedAccount.balance 
+//             });
+//         }  
+//     } 
+    
+//     catch(err) 
+//     {
+//         res.status(500).json({ message: 'Error adding record', error: err });
+//     }
+// });
+
+
 
 // Edit a record
 router.patch('/:_id', async (req: Request, res: Response) => {

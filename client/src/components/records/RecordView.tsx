@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { TransactionRecord } from './Records';
 import { RecordItem } from './RecordItem';
+import { TransactionRecord } from '../types/index'; // Adjust the path if necessary
 
 interface RecordViewProps {
   records: TransactionRecord[];
@@ -18,7 +18,7 @@ export const RecordView: React.FC<RecordViewProps> = ({ records }) => {
             <th>Amount</th>
             <th>Currency</th>
             <th>Payment Type</th>
-            <th>Date</th>
+            <th>Date Created</th>
             <th>Account</th>
           </tr>
         </thead>

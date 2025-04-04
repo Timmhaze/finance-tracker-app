@@ -1,78 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { AccountView } from './AccountView'
-import { fetchExchangeRates } from '../../../../server/src/services/exchangeRates'
+import React, { useState } from 'react';
+import { AccountView } from './AccountView';
+import { AddAccountForm } from './AddAccountForm';
+import { Account } from '../types/index';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Col } from 'react-bootstrap';
+import { Col, Button } from 'react-bootstrap';
 
-export interface Account {
-    _id: string; // MongoDB ID
-    title: string;
-    balance: string;
-    currency: string;
-    date: string;
-    convertedBalance?: string;
+interface AccountsProps {
+  accounts: Account[];
+  isLoading: boolean;
+  onAddAccount: (account: { title: string; currency: 'Euro' | 'Koruna'; balance: string }) => Promise<void>;
+  refreshTrigger: number;
 }
 
+export const Accounts: React.FC<AccountsProps> = ({ 
+  accounts, 
+  isLoading, 
+  onAddAccount 
+}) => {
+  const [showForm, setShowForm] = useState<boolean>(false);
 
-export const Accounts: React.FC = () => {
+  if (isLoading) return <div>Loading accounts...</div>;
 
-    const [accountData, setAccountData] = useState<Account[]>([]);
-    const [isLoading, setIsLoading] = useState(true)
-
-    useEffect(() => {
-        const fetchdata = async () => {
-            try {
-                const [accountsRes, exchangeRate] = await Promise.all([
-                    fetch('http://localhost:3001/api/accounts/'),
-                    fetchExchangeRates()
-                ]);
-
-                const accounts = await accountsRes.json();
-
-                const accountsWithConversion = accounts.map((account: Account) => ({
-                    ...account,
-                    convertedBalance: convertBalance(account, exchangeRate)
-                }));
-
-                setAccountData(accountsWithConversion);
-            }
-
-            catch(err) {
-                console.error('Fetch error:', err)
-            }
-
-            finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchdata();
-    }, []);
-
-    const convertBalance = (account: Account, rate: number): string => {
-        const balance = parseFloat(account.balance);
-        if(account.currency === 'Euro') {
-            return `${(balance * rate).toFixed(0)} Kč`;
-        }
-        return `${(balance / rate).toFixed(2)} €`;
-    };
-
-    if (isLoading) return <div>Loading accounts...</div>
-
-        // fetch('http://localhost:3001/api/accounts/')
-        //     .then((res) => res.json())
-        //     .then((data) => {
-        //         setAccountData(data);
-        //     }).catch((error) => {
-        //         console.error('Frontend Error:', error);
-        //     });
-    
-
-    return (
-        <Col>
-            <AccountView accounts={accountData} />
-            {/* <AddAccountForm /> */}
-        </Col>
-    );
+  return (
+    <Col>
+      <Button 
+        variant='success' 
+        className='mb-3'
+        onClick={() => setShowForm(true)}
+      >
+        + Add New Account
+      </Button>
+      <AddAccountForm 
+        show={showForm}
+        onClose={() => setShowForm(false)}
+        onAddAccount={onAddAccount}
+      />
+      <AccountView accounts={accounts} />
+    </Col>
+  );
 };
-

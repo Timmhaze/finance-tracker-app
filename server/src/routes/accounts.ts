@@ -27,20 +27,48 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // Add a new record
-router.post('/', async (req: Request, res: Response) => {
-    try 
-    {
-        const newRecordBody = req.body; // Get the record from the frontend request body
+// router.post('/', async (req: Request, res: Response) => {
+//     try 
+//     {
+//         const newRecordBody = req.body; // Get the record from the frontend request body
 
-        const newRecord = new AccountModel(newRecordBody); // Create a new record instance using the data from the request
+//         const newRecord = new AccountModel(newRecordBody); // Create a new record instance using the data from the request
 
-        const savedRecord = await newRecord.save(); // Save the record to the database
-        res.status(201).json(savedRecord);
-    } 
+//         const savedRecord = await newRecord.save(); // Save the record to the database
+//         res.status(201).json(savedRecord);
+//     } 
     
-    catch(err) 
-    {
-        res.status(500).json({ message: 'Error adding account', error: err });
+//     catch(err) 
+//     {
+//         res.status(500).json({ message: 'Error adding account', error: err });
+//     }
+// });
+
+router.post('/', async (req: Request, res: Response) => {
+    try {
+        const { title, currency, balance } = req.body;
+
+        // Validate required fields
+        if (!title || !currency) {
+           res.status(400).json({ message: 'Title and currency are required' });
+        }
+
+        // Create the account with proper balance handling
+        const newAccount = new AccountModel({
+            title,
+            currency,
+            balance: balance || '0',  // Use provided balance or default to '0'
+            date: new Date().toISOString()
+        });
+
+        const savedAccount = await newAccount.save();
+        res.status(201).json(savedAccount);
+
+    } catch(err) {
+        res.status(500).json({ 
+            message: 'Error adding account', 
+            error: err instanceof Error ? err.message : 'Unknown error' 
+        });
     }
 });
 

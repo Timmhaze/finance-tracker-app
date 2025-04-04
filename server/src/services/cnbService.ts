@@ -1,5 +1,3 @@
-let EXCHANGE_URI = 'https://www.cnb.cz/en/financial-markets/foreign-exchange-market/central-bank-exchange-rate-fixing/central-bank-exchange-rate-fixing/daily.txt'
-
 let cachedRates: { // default value of null, if an object exists then it is an object, neato!
     EUR_CZK: number; lastUpdated: string
 } | null = null;
@@ -10,7 +8,7 @@ export const fetchExchangeRates = async (): Promise<number> => {
     }
 
     try {
-        const response = await fetch(EXCHANGE_URI)
+        const response = await fetch('http://localhost:3001/api/exchange-rates')
         const text = await response.text();
 
         const eurRateLine = text.split('\n').find(line => line.includes('EUR|'));
@@ -20,6 +18,7 @@ export const fetchExchangeRates = async (): Promise<number> => {
             EUR_CZK: eurRate,
             lastUpdated: new Date().toISOString()
         };
+        console.log(eurRate);
         return eurRate;
     }
     
@@ -29,6 +28,6 @@ export const fetchExchangeRates = async (): Promise<number> => {
 };
 
 const isCacheValid = (lastUpdated: string): boolean => {
-    return Date.now() - new Date(lastUpdated).getTime() < 24 * 60 * 60 * 1000
+    return Date.now() - new Date(lastUpdated).getTime() < (24 * 60 * 60 * 1000) / 2
 }
 

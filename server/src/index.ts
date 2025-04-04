@@ -5,6 +5,8 @@ import cors from 'cors';
 import recordsRoutes from './routes/records'; // Import the records routes
 import accountsRoutes from './routes/accounts'; // Import the accounts routes
 
+import exhangeRatesRoutes from './routes/currencyRoutes';
+
 const app: Express = express(); // Instance of an Express app
 const PORT = process.env.PORT || 3001; // Port at which the server will run, it can be hard coded or set from an env variable port if available
 
@@ -21,6 +23,8 @@ mongoose
 
 app.use('/api/records', recordsRoutes);
 app.use('/api/accounts', accountsRoutes);
+app.use('/api/exchange-rates', exhangeRatesRoutes);
+
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`)); // Start the server on the specified port
 

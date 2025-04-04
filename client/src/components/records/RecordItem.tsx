@@ -1,5 +1,5 @@
 import React from 'react';
-import { TransactionRecord } from './Records';
+import { TransactionRecord } from '../types/index'; // Adjust the path if necessary
 
 interface RecordItemProps {
   record: TransactionRecord;
