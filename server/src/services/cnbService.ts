@@ -18,7 +18,6 @@ export const fetchExchangeRates = async (): Promise<number> => {
             EUR_CZK: eurRate,
             lastUpdated: new Date().toISOString()
         };
-        console.log(eurRate);
         return eurRate;
     }
     

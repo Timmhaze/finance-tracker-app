@@ -23,14 +23,6 @@ export const AddRecordForm: React.FC<AddRecordFormProps> = ({
   onClose, 
   onAddRecord
 }) => {
-  // const [description, setDescription] = useState<string>('');
-  // const [category, setCategory] = useState<string>('');
-  // const [type, setType] = useState<string>('');
-  // const [amount, setAmount] = useState<string>('');
-  // const [currency, setCurrency] = useState<string>('');
-  // const [paymentType, setPaymentType] = useState<string>('');
-  // const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  // const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     description: '',
@@ -41,6 +33,7 @@ export const AddRecordForm: React.FC<AddRecordFormProps> = ({
     paymentType: 'Credit/Debit Card',
     accountId: '' // Added accountId to form state
   });
+  
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -235,7 +228,7 @@ export const AddRecordForm: React.FC<AddRecordFormProps> = ({
               <option value="">Select an account</option>
               {accounts.map((account) => (
                 <option key={account._id} value={account._id}>
-                  {account.title} | ({account.currency})
+                 [{account.currency}] | {account.title}
                 </option>
               ))}
             </Form.Select>

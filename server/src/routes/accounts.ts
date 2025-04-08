@@ -26,23 +26,6 @@ router.get('/', async (req: Request, res: Response) => {
     }
 });
 
-// Add a new record
-// router.post('/', async (req: Request, res: Response) => {
-//     try 
-//     {
-//         const newRecordBody = req.body; // Get the record from the frontend request body
-
-//         const newRecord = new AccountModel(newRecordBody); // Create a new record instance using the data from the request
-
-//         const savedRecord = await newRecord.save(); // Save the record to the database
-//         res.status(201).json(savedRecord);
-//     } 
-    
-//     catch(err) 
-//     {
-//         res.status(500).json({ message: 'Error adding account', error: err });
-//     }
-// });
 
 router.post('/', async (req: Request, res: Response) => {
     try {
