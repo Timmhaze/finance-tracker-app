@@ -35,13 +35,13 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     // Extract the required fields from the request body
-    const { amount, currency, accountId } = req.body;
+    const { amount, currency, linkedAccount } = req.body;
    
     // Fetch the account from the database
-    const account = await AccountModel.findById(accountId);
+    const account = await AccountModel.findById(linkedAccount);
 
     if (!account) {
-      res.status(400).json({ error: 'Cannot find account with ID: ', accountId });
+      res.status(400).json({ error: 'Cannot find account with ID: ', linkedAccount });
       return;
     } 
     
@@ -68,7 +68,7 @@ router.post('/', async (req: Request, res: Response) => {
       // Create the new record
       const newRecord = new TransactionRecordModel({
         ...req.body,
-        linkedAccount: accountId
+        linkedAccount: linkedAccount
       });
 
       // Save the record to the database
@@ -76,7 +76,7 @@ router.post('/', async (req: Request, res: Response) => {
 
       // Update the fields for the linked account with the new values
       await AccountModel.findByIdAndUpdate(
-        accountId, 
+        linkedAccount, 
         { $inc: { accountBalance: processedAmount} }, 
         { new: true } 
       );
@@ -98,7 +98,17 @@ router.patch('/:recordId', async (req: Request, res: Response) => {
   try {
     const { recordId } = req.params;
     const updates = req.body;
+    const {
+      description,
+      category,
+      type,
+      amount,
+      currency,
+      paymentType,
+      linkedAccount: newLinkedAccountId
+    } = updates;
 
+    // Fetch the existing record and linked account
     const existingRecord = await TransactionRecordModel.findById(recordId).session(session);
     if (!existingRecord) {
       await session.abortTransaction();
@@ -113,23 +123,35 @@ router.patch('/:recordId', async (req: Request, res: Response) => {
       return;
     }
 
-    await AccountModel.findByIdAndUpdate(
-      linkedAccount._id,
-      { $inc: { accountBalance: -existingRecord.amount} },
-      { new: true, session }
-    )
+    // Always undo original
+    await AccountModel.findByIdAndUpdate(existingRecord.linkedAccount, {
+      $inc: { accountBalance: -existingRecord.amount }
+    }).session(session);
 
+    // If type changed, apply opposite effect of original
+    if (existingRecord.type !== type) {
+      const flipAdjustment = existingRecord.type === 'Income' ? -existingRecord.amount : existingRecord.amount;
+      await AccountModel.findByIdAndUpdate(existingRecord.linkedAccount, {
+        $inc: { accountBalance: flipAdjustment }
+      }).session(session);
+    }
+
+    // CURRENTLY REVERTS CHANGES THE RECORD MADE TO ACCOUNT BALANCE, THEN CHECKS THE TYPE AND IF THE TYPE IS DIFFERENT FLIPS THE SIGN SO IT CAN RUN X2 FOR PROPER RESULTS
+    
+    // Commit the transaction
     await session.commitTransaction();
     res.status(200).json({ message: 'Record updated successfully' });
-  } 
-  
-  catch(err) {
+  }
+
+  catch (err) {
+    // Abort the transaction in case of any error
     await session.abortTransaction();
     console.error('Update failed:', err);
     res.status(500).json({ error: 'Failed to update record' });
   } 
   
   finally {
+    // End the session
     session.endSession();
   }
 });

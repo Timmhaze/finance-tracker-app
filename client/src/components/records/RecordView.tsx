@@ -17,8 +17,8 @@ export const RecordView: React.FC<RecordViewProps> = ({ records }) => {
             <th>Description</th>
             <th>Category</th>
             <th>Type</th>
-            <th>Amount</th>
             <th>Currency</th>
+            <th>Amount</th>
             <th>Payment Type</th>
             <th>Date Created</th>
             <th>Account</th>
