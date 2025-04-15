@@ -1,3 +1,5 @@
+//client/src/components/records/RecordView.tsx
+
 import React, { useState } from 'react';
 import { RecordItem } from './RecordItem';
 import { TransactionRecord } from '../types/index'; // Adjust the path if necessary

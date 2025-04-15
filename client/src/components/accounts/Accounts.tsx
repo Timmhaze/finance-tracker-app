@@ -1,41 +1,25 @@
+// client/src/components/accounts/Accounts.tsx
+
+// React imports
 import React, { useState } from 'react';
-import { AccountView } from './AccountView';
-import { AddAccountForm } from './AddAccountForm';
+
+// Accounts related imports
 import { Account } from '../types/index';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { Col, Button } from 'react-bootstrap';
+import { AccountView } from './AccountView';
+
+//Bootstrap imports
+import { Col } from 'react-bootstrap';
 
 interface AccountsProps {
   accounts: Account[];
-  isLoading: boolean;
-  onAddAccount: (account: { title: string; currency: 'Euro' | 'Koruna'; balance: string }) => Promise<void>;
-  refreshTrigger: number;
+  exchangeRate: number;
 }
 
-export const Accounts: React.FC<AccountsProps> = ({ 
-  accounts, 
-  isLoading, 
-  onAddAccount 
-}) => {
-  const [showForm, setShowForm] = useState<boolean>(false);
-
-  if (isLoading) return <div>Loading accounts...</div>;
+export const Accounts: React.FC<AccountsProps> = ({ accounts, exchangeRate }) => {
 
   return (
     <Col>
-      <Button 
-        variant='success' 
-        className='mb-3'
-        onClick={() => setShowForm(true)}
-      >
-        + Add New Account
-      </Button>
-      <AddAccountForm 
-        show={showForm}
-        onClose={() => setShowForm(false)}
-        onAddAccount={onAddAccount}
-      />
-      <AccountView accounts={accounts} />
+      <AccountView accounts={accounts} exchangeRate={exchangeRate}/>
     </Col>
   );
 };

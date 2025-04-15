@@ -1,104 +1,135 @@
+//server/src/routes/accounts.ts
+
 import express, {Request, Response} from 'express';
+import mongoose from 'mongoose';
 import AccountModel from '../models/account';
+import { fetchExchangeRates } from '../services/cnbService';
+import { TransactionRecordModel } from '../models/record';
 
 const router = express.Router();
 
 // Get all records
 router.get('/', async (req: Request, res: Response) => {
-    try 
-    {
+    try {
         const records = await AccountModel.find();
 
-        if(records.length === 0) // If there are no records to show, return a 404 status code
-        {
+        if(records.length === 0) {
             res.status(404).json({ message: 'No accounts found' }); 
-        }
-
-        else 
-        {
+        } else {
             res.status(200).json(records); // Success
         }
     } 
 
-    catch(err) 
-    {
+    catch(err) {
         res.status(500).json({ message: 'Error fetching accounts', error: err });
     }
 });
 
-
 router.post('/', async (req: Request, res: Response) => {
-    try {
-        const { title, currency, balance } = req.body;
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
+    const { title, currency, accountBalance } = req.body;
+
+    try {
         // Validate required fields
-        if (!title || !currency) {
-           res.status(400).json({ message: 'Title and currency are required' });
+        if (!title || !currency || accountBalance === undefined) {
+            await session.abortTransaction();
+            session.endSession();
+            res.status(400).json({ message: 'Missing required fields' });
         }
 
-        // Create the account with proper balance handling
         const newAccount = new AccountModel({
             title,
             currency,
-            balance: balance || '0',  // Use provided balance or default to '0'
-            date: new Date().toISOString()
+            accountBalance,
         });
 
-        const savedAccount = await newAccount.save();
-        res.status(201).json(savedAccount);
+        await newAccount.save({ session });
+        await session.commitTransaction();
+        session.endSession();
+        res.status(201).json(newAccount);
+    } 
+    
+    catch (err) {
+        await session.abortTransaction();
+        session.endSession();
 
-    } catch(err) {
+        console.error('Account creation error:', err);
         res.status(500).json({ 
-            message: 'Error adding account', 
+            message: 'Error creating account', 
             error: err instanceof Error ? err.message : 'Unknown error' 
         });
     }
 });
 
-// Edit a record
-router.patch('/:_id', async (req: Request, res: Response) => {
-    try 
-    {
-        const recordId = req.params._id; // Get the record ID from the request parameters
+router.patch('/:accountId', async (req: Request, res: Response) => {
+    const { accountId } = req.params;
+    const updates = req.body;
 
-        const newRecordBody = req.body; // Get the updated record from the frontend request body
-
-        const updatedRecord = await AccountModel.findByIdAndUpdate(recordId, newRecordBody, { new: true }); // Find the record by ID and update it with the new data
-
-        if (!updatedRecord) 
-        {
-            res.status(404).json({ message: 'Account not found' }); // If the record is not found, return a 404 status code
+    try {
+        const account = await AccountModel.findById(accountId);
+        if (!account) {
+            res.status(404).json({ message: 'Account not found' });
+            return;
         }
 
-        res.status(200).json(updatedRecord); // Success
+        // Check if the title has been changed
+        if (updates.title !== undefined) {
+            account.title = updates.title;
+        }
+
+        if (updates.account !== undefined || updates.currency !== undefined) {
+            res.status(400).json({ message: 'Someone tried to change the account or currency! Exterminate!' });
+            return;
+        }
+
+        await account.save();
+        res.status(200).json(account);
     }
 
-    catch(err) // If there is an error updating the record, return a 400 status code
-    {
+    catch(err) {
+        console.error('Update error:', err);
         res.status(500).json({ message: 'Error updating account', error: err });
-    }  
+    }
+    
 });
 
+router.delete('/:accountId', async (req: Request, res: Response) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-// Delete a record
-router.delete('/:_id', async (req: Request, res: Response) => {
-    try
-    {
-        const recordId = req.params._id; // Get the record ID from the request parameters
+    try {
+        // Extract the ID from the request
+        const { accountId } = req.params;
 
-        const recordForDeletion = await AccountModel.findByIdAndDelete(recordId); // Find the record by ID and delete it
-
-        if (!recordForDeletion) 
-        {
-            res.status(404).json({ message: 'Cannot delete - account not found' }); // If the record is not found, return a 404 status code
+        // Find the account using the request ID and check if it exists
+        const account = await AccountModel.findById(accountId).session(session);
+        if(!account) {
+            await session.abortTransaction();
+            res.status(404).json({ error: 'Account not found' });
+            return;
         }
 
-        res.status(200).json({ message: 'Account deleted' }); // Success
+        const deleteResult = await TransactionRecordModel.deleteMany({
+            account: accountId
+        }).session(session);
+
+        // Delete the account
+        await AccountModel.deleteOne({ _id: accountId }).session(session);
+
+        await session.commitTransaction();
+        res.status(204).json({ message: 'Account deleted successfully', recordsDeleted: deleteResult.deletedCount});
     }
 
-    catch(err)
-    {
-        res.status(500).json({ message: 'Error deleting account', error: err }); // If there is an error deleting the record, return a 400 status code
+    catch(err) {
+        await session.abortTransaction();
+        console.error('Delete failed:', err);
+        res.status(500).json({ error: 'Failed to delete account' });
+    }
+
+    finally {
+        session.endSession();
     }
 });
 

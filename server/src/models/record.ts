@@ -1,48 +1,47 @@
+// MongoDB imports
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
+// CNB Conversion rate service import
+import { fetchExchangeRates } from '../services/cnbService';
+
 export interface TransactionRecord extends Document {
-    description: string;
-    category: string,
-    type: 'Income' | 'Expense';
-    amount: number;
-    currency: string;
-    paymentType: string;
-    date: string;
-    account: Types.ObjectId;
+  description: string;
+  category: string;
+  type: 'Income' | 'Expense';
+  amount: number;
+  currency: 'EUR' | 'CZK'; // Strictly matches Account currency types
+  paymentType: string;
+  dateCreated?: string;
+  linkedAccount: Types.ObjectId;
+  originalAmount?: number;
+  originalCurrency?: string;
 }
 
 const transactionRecordSchema: Schema = new Schema({
-    description: { type: String, required: true },
-    category: { type: String, required: true},
-    type: { type: String, enum: ['Income', 'Expense'], required: true },
-    amount: { type: Number, required: true },
-    currency: { type: String, required: true },
-    paymentType: { type: String, required: true },
-    date: { type: String, required: true },
-    account: {
-        type: Schema.Types.ObjectId,
-        ref: 'Account', // Reference to the Account model
-        required: true 
-    },
+  description: { type: String, required: true, trim: true, maxlength: 100 },
+  category: { type: String, required: true,trim: true },
+  type: { type: String, enum: ['Income', 'Expense'], required: true },
+  amount: { type: Number, required: true},
+  currency: { type: String, enum: ['EUR', 'CZK'], required: true },
+  paymentType: { type: String, required: true },
+  dateCreated: { type: Date, required: false },
+  linkedAccount: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
+  originalAmount: { type: Number, required: false },
+  originalCurrency: { type: String, enum: ['EUR', 'CZK'], required: false }
 });
 
-transactionRecordSchema.pre<TransactionRecord>('save', function (next) {
-    if (this.type === 'Expense') 
-    {
-        this.amount = -Math.abs(this.amount); // Ensure amount is negative for expenses
-    }
-
-    else if (this.type === 'Income')
-    {
-        this.amount = Math.abs(this.amount); // Ensure amount is positive for income
-    }
-    next();
+// Pre-save hook for amount handling + currency conversion, should only run during post, not during update (findByIdAndUpdate circumvents the presave hook)
+transactionRecordSchema.pre<TransactionRecord>('save', async function(next) 
+{
+  // 1. Ensure correct amount sign
+  if(this.isNew) {
+    this.amount = this.type === 'Expense' ? -Math.abs(this.amount) : Math.abs(this.amount);
+    this.originalAmount = this.type === 'Expense' ? -Math.abs(this.amount) : Math.abs(this.amount);
+    this.originalCurrency = this.currency;
+    this.dateCreated = new Date().toISOString().split('T')[0]; // Format date to YYYY-MM-DD
+  }
+  
+  next();
 });
 
-
-
-const TransactionRecordModel = mongoose.model<TransactionRecord>(
-    'Record', transactionRecordSchema
-);
-
-export default TransactionRecordModel;
+export const TransactionRecordModel = mongoose.model<TransactionRecord>('Record', transactionRecordSchema);

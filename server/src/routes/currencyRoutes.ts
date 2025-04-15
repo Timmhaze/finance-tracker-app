@@ -1,3 +1,5 @@
+//server/src/routes/currencyRoutes.ts
+
 import { Router, Request, Response } from 'express';
 
 const router = Router();

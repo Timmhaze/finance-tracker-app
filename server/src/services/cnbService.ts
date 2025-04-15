@@ -1,3 +1,5 @@
+//server/src/services/cnbService.ts
+
 let cachedRates: { // default value of null, if an object exists then it is an object, neato!
     EUR_CZK: number; lastUpdated: string
 } | null = null;
@@ -27,6 +29,6 @@ export const fetchExchangeRates = async (): Promise<number> => {
 };
 
 const isCacheValid = (lastUpdated: string): boolean => {
-    return Date.now() - new Date(lastUpdated).getTime() < (24 * 60 * 60 * 1000) / 2
+    return Date.now() - new Date(lastUpdated).getTime() < (24 * 60 * 60 * 1000) / 24
 }
 
