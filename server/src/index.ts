@@ -20,9 +20,7 @@ app.use(express.json()); // To parse the incoming requests with JSON payloads
 app.use(cors()); // To enable Cross-Origin Resource Sharing
 
 // Database Connection
-const MONGO_URI = process.env.MONGO_URI!; //MongoDB URINOTE:
-
-console.log('MONGO_URI BOOGEYWOOGEYWOOOO:', process.env.MONGO_URI);
+const MONGO_URI = process.env.MONGO_URI!; //MongoDB URI NOTE: stored in env file on my machine, but not in the repo for security reasons
 
 if (!MONGO_URI) {
   console.error('Missing MONGO_URI environment variable!');
