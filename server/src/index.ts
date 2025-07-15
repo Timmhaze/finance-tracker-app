@@ -2,7 +2,10 @@
 
 import express, { Express } from 'express';
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 import cors from 'cors'; 
+
+dotenv.config();
 
 import recordsRoutes from './routes/records'; // Import the records routes
 import accountsRoutes from './routes/accounts'; // Import the accounts routes
@@ -17,7 +20,15 @@ app.use(express.json()); // To parse the incoming requests with JSON payloads
 app.use(cors()); // To enable Cross-Origin Resource Sharing
 
 // Database Connection
-const MONGO_URI: string = 'mongodb+srv://THayes95:zbvpW4nIZ4qzkZr8@finance-tracker-cluster.ftolny7.mongodb.net/'; //MongoDB URI
+const MONGO_URI = process.env.MONGO_URI!; //MongoDB URINOTE:
+
+console.log('MONGO_URI BOOGEYWOOGEYWOOOO:', process.env.MONGO_URI);
+
+if (!MONGO_URI) {
+  console.error('Missing MONGO_URI environment variable!');
+  process.exit(1); // Stop the server immediately
+}
+
 mongoose
     .connect(MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))

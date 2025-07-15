@@ -33,80 +33,82 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 router.post('/', async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     // Extract the required fields from the request body
     const { amount, currency, linkedAccount } = req.body;
    
     // Fetch the account from the database
-    const account = await AccountModel.findById(linkedAccount);
+    const account = await AccountModel.findById(linkedAccount).session(session);
 
     if (!account) {
-      res.status(400).json({ error: 'Cannot find account with ID: ', linkedAccount });
+      res.status(400).json({ error: `Cannot find account with ID: ${linkedAccount}` });
+      await session.abortTransaction();
       return;
     } 
     
+    // Initialize values to be used when incrementing or decrementing the account values
+    let processedAmount: number = 0;
+
+    // Record currency does not match account currency then convert
+    if(currency !== account.currency) {
+      const exchangeRate = await fetchExchangeRates();
+      if (currency === 'EUR') {
+        processedAmount = amount * exchangeRate; // EUR -> CZK
+      } 
+
+      else if (currency === 'CZK') {
+        processedAmount = amount / exchangeRate; // CZK -> EUR
+      }
+    }
+
     else {
-      // Initialize values to be used when incrementing or decrementing the account values
-      let processedAmount: number = 0;
+      processedAmount = amount; // No conversion needed
+    }
 
-      // Record currency does not match account currency then convert
-      if(currency !== account.currency) {
-        const exchangeRate = await fetchExchangeRates();
-        if (currency === 'EUR') {
-          processedAmount = amount * exchangeRate; // EUR -> CZK
-        } 
+    // Create the new record
+    const newRecord = new TransactionRecordModel({
+      ...req.body,
+      linkedAccount: linkedAccount
+    });
 
-        else if (currency === 'CZK') {
-          processedAmount = amount / exchangeRate; // CZK -> EUR
-        }
-      }
+    // Save the record to the database
+    const savedRecord = await newRecord.save({ session }); 
 
-      else {
-        processedAmount = amount; // No conversion needed
-      }
+    // Update the fields for the linked account with the new values
+    await AccountModel.findByIdAndUpdate(linkedAccount, { 
+      $inc: { accountBalance: processedAmount} }, 
+      { new: true, session } 
+    );
 
-      // Create the new record
-      const newRecord = new TransactionRecordModel({
-        ...req.body,
-        linkedAccount: linkedAccount
-      });
-
-      // Save the record to the database
-      const savedRecord = await newRecord.save(); 
-
-      // Update the fields for the linked account with the new values
-      await AccountModel.findByIdAndUpdate(
-        linkedAccount, 
-        { $inc: { accountBalance: processedAmount} }, 
-        { new: true } 
-      );
-
-      // Return the saved recorde
-      res.status(201).json(savedRecord); 
-    } 
+    // Return the saved record
+    await session.commitTransaction();
+    res.status(201).json(savedRecord); 
   }
 
   catch(err) {
-      res.status(500).json({ message: 'Error creating record', error: err }); // If there is an error creating the record, return a 400 status code
-  } 
+      await session.abortTransaction();
+      res.status(400).json({ message: 'Error creating record', error: err }); // If there is an error creating the record, return a 400 status code
+  }
+
+  finally {
+      session.endSession(); // End the session
+  }
 });
 
+
+/* NOTE: This is the PATCH attempt. It works, though doesn't do well with just the currency type being changed. 
 router.patch('/:recordId', async (req: Request, res: Response) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
+
     const { recordId } = req.params;
-    const updates = req.body;
-    const {
-      description,
-      category,
-      type,
-      amount,
-      currency,
-      paymentType,
-      linkedAccount: newLinkedAccountId
-    } = updates;
+
+    const exchangeRate = await fetchExchangeRates(); // Fetch exchange rates once for efficiency
 
     // Fetch the existing record and linked account
     const existingRecord = await TransactionRecordModel.findById(recordId).session(session);
@@ -123,25 +125,135 @@ router.patch('/:recordId', async (req: Request, res: Response) => {
       return;
     }
 
+    
+    const updates = req.body;
+    const {
+      description,
+      category,
+      type,
+      amount,
+      currency,
+      paymentType,
+      linkedAccount: newLinkedAccountId, // This part of the destructured object means "take the linkedAccount property from the object but assign it to a new variable called newLinkedAccountId"
+    } = updates;
+
+    let amountForRemoval = existingRecord.amount; // Amount to be removed from the original account
+
+    if(existingRecord.type === 'Expense') {
+      amountForRemoval = -existingRecord.amount; // Flip the sign for expense
+    }
+
+    if (existingRecord.currency !== linkedAccount.currency) {
+      if (existingRecord.currency === 'EUR' && linkedAccount.currency === 'CZK') {
+        amountForRemoval = existingRecord.amount * exchangeRate; // EUR -> CZK
+      } 
+      
+      else if (existingRecord.currency === 'CZK' && linkedAccount.currency === 'EUR') {
+        amountForRemoval = existingRecord.amount / exchangeRate; // CZK -> EUR
+      }
+    }
+
+    // else no conversion needed
+
     // Always undo original
     await AccountModel.findByIdAndUpdate(existingRecord.linkedAccount, {
-      $inc: { accountBalance: -existingRecord.amount }
+      $inc: { accountBalance: -amountForRemoval }
     }).session(session);
 
-    // If type changed, apply opposite effect of original
-    if (existingRecord.type !== type) {
-      const flipAdjustment = existingRecord.type === 'Income' ? -existingRecord.amount : existingRecord.amount;
-      await AccountModel.findByIdAndUpdate(existingRecord.linkedAccount, {
-        $inc: { accountBalance: flipAdjustment }
+
+
+    // At this point none of the new data has or needs to be applied yet. All of the above just undoes the effects of the orginal record
+
+    let balanceAdjustment = updates.amount;
+    console.log("The value of the amount we are sending in the request is: ", updates.amount);
+
+    
+    // If there is a new linked account
+    if (existingRecord.linkedAccount.toString() !== newLinkedAccountId.toString()) {
+      // Case where the linked account has changed
+      const newLinkedAccount = await AccountModel.findById(newLinkedAccountId).session(session);
+      if (!newLinkedAccount) {
+        await session.abortTransaction();
+        res.status(404).json({ message: 'New linked account not found' });
+        return;
+      }
+
+      if(updates.currency === newLinkedAccount.currency) {
+        balanceAdjustment = updates.amount; // No conversion needed
+      }
+
+      else {
+        if (updates.currency === 'EUR' && newLinkedAccount.currency === 'CZK') {
+          balanceAdjustment = updates.amount * exchangeRate; // EUR -> CZK
+        } 
+        
+        else if (updates.currency === 'CZK' && newLinkedAccount.currency === 'EUR') {
+          balanceAdjustment = updates.amount / exchangeRate; // CZK -> EUR
+        }
+      }
+
+      if(updates.type !== existingRecord.type) {
+        if(updates.type === 'Expense') {
+          Math.abs(balanceAdjustment); // Prevent minus * minus = plus situation
+          balanceAdjustment *= -1; // Flip the sign for expense
+        }
+
+        else if(updates.type === 'Income') {
+          Math.abs(balanceAdjustment); // Flip the sign for income
+        }
+      }
+
+      // Apply the balance adjustment to the new linked account
+      await AccountModel.findByIdAndUpdate(newLinkedAccount._id, {
+        $inc: { accountBalance: balanceAdjustment }
+      }).session(session);
+
+    } 
+    
+    // If it's the same account as previously
+    else {
+      if(existingRecord.currency === updates.currency){
+        balanceAdjustment = updates.amount; // No conversion needed
+      }
+
+      else {
+        if (existingRecord.currency === 'EUR' && updates.currency === 'CZK') {
+          balanceAdjustment = updates.amount * exchangeRate; // EUR -> CZK
+        }
+        else if (existingRecord.currency === 'CZK' && updates.currency === 'EUR') {
+          balanceAdjustment = updates.amount / exchangeRate; // CZK -> EUR
+        }
+      }
+
+      if(updates.type !== existingRecord.type) {
+        if(updates.type === 'Expense') {
+          Math.abs(balanceAdjustment); // Prevent minus * minus = plus situation
+          balanceAdjustment *= -1; // Flip the sign for expense
+        }
+
+        else if(updates.type === 'Income') {
+          Math.abs(balanceAdjustment); // Flip the sign for income
+        }
+      }
+
+      // Apply the balance adjustment to the same account (linked account)
+      await AccountModel.findByIdAndUpdate(newLinkedAccountId, {
+        $inc: { accountBalance: balanceAdjustment }
       }).session(session);
     }
 
-    // CURRENTLY REVERTS CHANGES THE RECORD MADE TO ACCOUNT BALANCE, THEN CHECKS THE TYPE AND IF THE TYPE IS DIFFERENT FLIPS THE SIGN SO IT CAN RUN X2 FOR PROPER RESULTS
-    
+    // Step 3: Update the transaction record with the new data
+    await TransactionRecordModel.findByIdAndUpdate(
+      recordId,
+      updates,
+      { new: true, session }
+    );
+
     // Commit the transaction
     await session.commitTransaction();
     res.status(200).json({ message: 'Record updated successfully' });
   }
+
 
   catch (err) {
     // Abort the transaction in case of any error
@@ -156,6 +268,119 @@ router.patch('/:recordId', async (req: Request, res: Response) => {
   }
 });
 
+*/
+
+router.put('/:recordId', async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { recordId } = req.params;
+    const {
+      description,
+      category,
+      type,
+      amount,
+      currency,
+      paymentType,
+      linkedAccount: newLinkedAccountId,
+    } = req.body;
+
+    const exchangeRate = await fetchExchangeRates();
+
+    // Fetch existing record
+    const existingRecord = await TransactionRecordModel.findById(recordId).session(session);
+    if (!existingRecord) {
+      await session.abortTransaction();
+      res.status(404).json({ message: 'Record not found' });
+      return 
+    }
+
+    const originalLinkedAccount = await AccountModel.findById(existingRecord.linkedAccount).session(session);
+    if (!originalLinkedAccount) {
+      await session.abortTransaction();
+      res.status(404).json({ message: 'Original linked account not found' });
+      return 
+    }
+
+    // Function to convert amount based on currency and exchange rate
+    function convertAmount(amount: number, from: 'EUR' | 'CZK', to: 'EUR' | 'CZK', rate: number): number {
+      if (from === to) return amount;
+      return from === 'EUR' ? amount * rate : amount / rate;
+    }
+
+    // Calculate reversal of original record
+    let reversalAmount = existingRecord.amount;
+    if (existingRecord.currency !== originalLinkedAccount.currency) {
+      reversalAmount = convertAmount(existingRecord.amount, existingRecord.currency, originalLinkedAccount.currency, exchangeRate);
+    }
+
+    if (existingRecord.type === 'Expense') reversalAmount *= -1;
+
+    await AccountModel.findByIdAndUpdate(existingRecord.linkedAccount, {
+      $inc: { accountBalance: -reversalAmount }
+    }).session(session);
+
+    // Get new linked account
+    const newLinkedAccount = await AccountModel.findById(newLinkedAccountId).session(session);
+    if (!newLinkedAccount) {
+      await session.abortTransaction();
+      res.status(404).json({ message: 'New linked account not found' });
+      return 
+    }
+
+    // Calculate adjustment for new values
+    let adjustedAmount = amount;
+    if (currency !== newLinkedAccount.currency) {
+      adjustedAmount = convertAmount(amount, currency, newLinkedAccount.currency, exchangeRate);
+    }
+
+    // If it is an expense, then remove from the account
+    if (type === 'Expense'){
+      await AccountModel.findByIdAndUpdate(newLinkedAccount._id, {
+        $inc: { accountBalance: -adjustedAmount }
+      }).session(session);
+    }
+
+    // Else add it to the account
+    else {
+      await AccountModel.findByIdAndUpdate(newLinkedAccount._id, {
+        $inc: { accountBalance: adjustedAmount }
+      }).session(session);
+    }
+
+    // Update the record (also update originalValue if needed)
+    const updatedRecord = await TransactionRecordModel.findByIdAndUpdate(
+      recordId,
+      {
+        description,
+        category,
+        type,
+        amount: Math.abs(amount), // Ensure amount is positive
+        currency,
+        paymentType,
+        linkedAccount: newLinkedAccountId,
+        originalValue: amount // update this if it's what the frontend displays
+      },
+      { new: true, session }
+    );
+
+    await session.commitTransaction();
+    res.status(200).json(updatedRecord);
+  } 
+  
+  catch (err) {
+    await session.abortTransaction();
+    console.error('PUT update failed:', err);
+    res.status(500).json({ error: 'Failed to update record' });
+  } 
+  
+  finally {
+    session.endSession();
+  }
+});
+
+// MAY NEED TO BE UPDATED TO USE NEW LOGIC
 router.delete('/:recordId', async (req: Request, res: Response) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -163,62 +388,48 @@ router.delete('/:recordId', async (req: Request, res: Response) => {
   try {
     const { recordId } = req.params;
 
-    // Find and validate the record we are trying to delete
     const record = await TransactionRecordModel.findById(recordId).session(session);
-    if(!record) {
+    if (!record) {
       await session.abortTransaction();
-      res.status(404).json({error: 'Record not found'});
+      res.status(404).json({ error: 'Record not found' });
       return;
     }
 
-    // Fetch the account linked to the record so that we can update its balance info when the account is deleted
     const account = await AccountModel.findById(record.linkedAccount).session(session);
-    if(!account) {
+    if (!account) {
       await session.abortTransaction();
-      throw new Error('Could not find linked account');
+      res.status(404).json({ error: 'Linked account not found' });
+      return;
     }
 
-    let balanceAdjustment = -record.amount; // Flip the value that the record has. If it added money, it will remove that money and vice versa
-    let secondaryBalanceAdjustment = 0;
-
+    let processedAmount = record.amount;
     if (record.currency !== account.currency) {
-      const exchangeRate = await fetchExchangeRates(); // NOTE: maybe add a field to the records showing their exchange rate when created, then use that as the exchange rate to keep the values consistent
-      secondaryBalanceAdjustment = record.currency === 'EUR'
-        ? -record.amount * exchangeRate 
-        : -record.amount / exchangeRate;
-    } 
-
-    else {
-      secondaryBalanceAdjustment = balanceAdjustment;
+      const exchangeRate = await fetchExchangeRates();
+      processedAmount = record.currency === 'EUR'
+        ? record.amount * exchangeRate
+        : record.amount / exchangeRate;
     }
 
-    // Update the account balance to match the values it would have without the related record
+    const balanceAdjustment = record.type === 'Expense' ? -processedAmount : processedAmount;
+
     await AccountModel.findByIdAndUpdate(
       account._id,
-      {
-        $inc: {
-          primaryBalance: balanceAdjustment,
-          secondaryBalance: secondaryBalanceAdjustment
-        }
-      },
+      { $inc: { accountBalance: balanceAdjustment } },
       { session }
     );
 
-    // Delete the record
     await TransactionRecordModel.deleteOne({ _id: recordId }).session(session);
 
     await session.commitTransaction();
-    res.status(204).json({ message: 'Record deleted and balances updated' });
-
-  }
-
-  catch(err)
-  {
+    res.sendStatus(204);
+  } 
+  
+  catch (err) {
     await session.abortTransaction();
     console.error('Delete failed:', err);
     res.status(500).json({ error: 'Failed to delete record' });
-  }
-
+  } 
+  
   finally {
     session.endSession();
   }

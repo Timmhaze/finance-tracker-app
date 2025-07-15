@@ -13,8 +13,6 @@ export interface TransactionRecord extends Document {
   paymentType: string;
   dateCreated?: string;
   linkedAccount: Types.ObjectId;
-  originalAmount?: number;
-  originalCurrency?: string;
 }
 
 const transactionRecordSchema: Schema = new Schema({
@@ -26,8 +24,6 @@ const transactionRecordSchema: Schema = new Schema({
   paymentType: { type: String, required: true },
   dateCreated: { type: Date, required: false },
   linkedAccount: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
-  originalAmount: { type: Number, required: false },
-  originalCurrency: { type: String, enum: ['EUR', 'CZK'], required: false }
 });
 
 // Pre-save hook for amount handling + currency conversion, should only run during post, not during update (findByIdAndUpdate circumvents the presave hook)
@@ -35,9 +31,7 @@ transactionRecordSchema.pre<TransactionRecord>('save', async function(next)
 {
   // 1. Ensure correct amount sign
   if(this.isNew) {
-    this.amount = this.type === 'Expense' ? -Math.abs(this.amount) : Math.abs(this.amount);
-    this.originalAmount = this.type === 'Expense' ? -Math.abs(this.amount) : Math.abs(this.amount);
-    this.originalCurrency = this.currency;
+    this.amount = Math.abs(this.amount);
     this.dateCreated = new Date().toISOString().split('T')[0]; // Format date to YYYY-MM-DD
   }
   
