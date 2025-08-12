@@ -1,5 +1,7 @@
 # Finance Tracker App
 
+NOTE: Collection for this application is currently down, may not work if tested
+
 A personal finance tracker that supports Czech Koruna (CZK) and Euro (EUR) currencies interchangeably. This app allows you to manage bank accounts with automatic currency conversion based on account types and transaction entries.
 
 ## Features
